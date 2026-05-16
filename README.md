@@ -1,36 +1,225 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 💸 Chi Tiêu — Ứng dụng quản lý tài chính cá nhân
 
-## Getting Started
+Ứng dụng web quản lý chi tiêu tối giản, hiện đại, tối ưu cho mobile. Xây dựng với Next.js 15, Prisma, Supabase và deploy trên Vercel.
 
-First, run the development server:
+---
+
+## ✨ Tính năng chính
+
+### 🏠 Dashboard
+- Hiển thị **tổng số dư** tất cả tài khoản
+- Danh sách tài khoản: Tiền mặt, Ngân hàng, Ví điện tử, Nguồn khác
+- Mỗi tài khoản có tên, số dư, icon và màu nhận diện riêng
+- 2 action nhanh: **Thêm chi tiêu** và **Chuyển tiền**
+
+### ➕ Thêm chi tiêu
+- Bottom sheet mượt mà, thân thiện mobile
+- Tự động lấy thời gian hiện tại
+- Upload hoặc chụp ảnh hoá đơn (lưu trên Supabase Storage)
+- Tự động **trừ số dư** tài khoản sau khi lưu
+
+### 🔄 Chuyển tiền (Transfer)
+- Chọn tài khoản nguồn và tài khoản đích
+- Tự động **trừ ví nguồn**, **cộng ví đích**
+- Lưu lịch sử dưới dạng giao dịch Transfer
+
+### 📋 Lịch sử giao dịch
+- Hiển thị tất cả Expense và Transfer
+- Group theo ngày
+- Preview ảnh hoá đơn nếu có
+- **Xoá** giao dịch → tự động hoàn lại số dư
+- Skeleton loading khi đang tải dữ liệu
+
+### 🔐 Xác thực
+- Đăng nhập bằng **Google OAuth** (NextAuth.js)
+- Dữ liệu được bảo vệ theo từng user
+
+---
+
+## 🛠 Công nghệ sử dụng
+
+| Công nghệ | Phiên bản | Mục đích |
+|---|---|---|
+| Next.js | 15.5.18 | Framework chính, App Router |
+| React | 19.1.0 | UI library |
+| TypeScript | 5.x | Type safety |
+| Prisma | 6.x | ORM, quản lý database |
+| Supabase | 2.x | PostgreSQL + Storage ảnh |
+| NextAuth.js | 4.x | Google OAuth |
+| Tailwind CSS | 4.x | Styling |
+| Sonner | 2.x | Toast notifications |
+| Framer Motion | 12.x | Animation |
+| next-themes | 0.4.x | Dark / Light mode |
+| lucide-react | 0.511.x | Icon library |
+| Vercel | — | Deploy & hosting |
+
+---
+
+## 📁 Cấu trúc dự án
+
+```
+expense-tracker/
+├── prisma/
+│   ├── schema.prisma          # Database schema
+│   ├── seed.ts                # Dữ liệu mẫu
+│   └── migrations/            # Lịch sử migration
+├── src/
+│   ├── app/
+│   │   ├── api/
+│   │   │   ├── auth/[...nextauth]/route.ts
+│   │   │   ├── wallets/route.ts
+│   │   │   └── transactions/
+│   │   │       ├── route.ts
+│   │   │       └── [id]/route.ts
+│   │   ├── history/
+│   │   │   └── page.tsx       # Trang lịch sử giao dịch
+│   │   ├── globals.css
+│   │   ├── layout.tsx         # Root layout
+│   │   └── page.tsx           # Dashboard
+│   ├── components/
+│   │   ├── layout/
+│   │   │   ├── BottomNav.tsx
+│   │   │   └── ThemeToggle.tsx
+│   │   ├── providers/
+│   │   │   └── Providers.tsx  # SessionProvider + ThemeProvider
+│   │   └── transactions/
+│   │       ├── ExpenseModal.tsx
+│   │       └── TransferModal.tsx
+│   ├── lib/
+│   │   ├── auth.ts            # NextAuth config
+│   │   ├── prisma.ts          # Prisma client singleton
+│   │   ├── supabase.ts        # Supabase client + uploadImage
+│   │   └── utils.ts           # formatCurrency, cn, formatDate
+│   └── types/
+│       └── index.ts           # TypeScript types
+├── .env                       # Environment variables (không commit)
+├── .env.example               # Template biến môi trường
+├── next.config.ts
+├── tailwind.config.ts
+└── tsconfig.json
+```
+
+---
+
+## 🗄 Database Schema
+
+```prisma
+model Wallet {
+  id        String     @id @default(cuid())
+  name      String
+  balance   Decimal    @db.Decimal(15, 2)
+  type      WalletType  # CASH | BANK | EWALLET | OTHER
+  color     String
+  icon      String
+  userId    String
+}
+
+model Transaction {
+  id           String          @id @default(cuid())
+  type         TransactionType  # EXPENSE | TRANSFER
+  amount       Decimal         @db.Decimal(15, 2)
+  note         String?
+  imageUrl     String?
+  fromWalletId String
+  toWalletId   String?
+  userId       String
+  createdAt    DateTime
+}
+```
+
+---
+
+## 🚀 Cài đặt & chạy local
+
+### 1. Clone và cài dependencies
+
+```bash
+git clone <repo-url>
+cd expense-tracker
+npm install
+```
+
+### 2. Tạo file `.env` từ template
+
+```bash
+cp .env.example .env
+```
+
+Điền đầy đủ các biến sau:
+
+```env
+# Database (Supabase)
+DATABASE_URL="postgresql://..."
+DIRECT_URL="postgresql://..."
+
+# NextAuth
+NEXTAUTH_URL="http://localhost:3000"
+NEXTAUTH_SECRET="your-secret-32-chars"
+
+# Google OAuth (Google Cloud Console)
+GOOGLE_CLIENT_ID="..."
+GOOGLE_CLIENT_SECRET="..."
+
+# Supabase Storage
+NEXT_PUBLIC_SUPABASE_URL="https://xxx.supabase.co"
+NEXT_PUBLIC_SUPABASE_ANON_KEY="..."
+```
+
+### 3. Chạy migration và seed
+
+```bash
+# Tạo bảng trong database
+npm run db:migrate
+
+# Đăng nhập Google trên localhost:3000 trước, sau đó seed dữ liệu mẫu
+npm run db:seed
+```
+
+### 4. Chạy development server
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Mở [http://localhost:3000](http://localhost:3000) trên trình duyệt.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+---
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## ☁️ Deploy lên Vercel
 
-## Learn More
+1. Push code lên GitHub
+2. Vào [vercel.com](https://vercel.com) → Import project
+3. Thêm tất cả biến môi trường trong **Settings → Environment Variables**
+4. Thêm `NEXTAUTH_URL` = domain Vercel của bạn (ví dụ: `https://chi-tieu.vercel.app`)
+5. Deploy!
 
-To learn more about Next.js, take a look at the following resources:
+> **Lưu ý:** Cập nhật **Authorized redirect URIs** trong Google Cloud Console với domain Vercel mới.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+---
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## 📱 Screenshots
 
-## Deploy on Vercel
+> Dashboard · Thêm chi tiêu · Chuyển tiền · Lịch sử giao dịch
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+*(Thêm ảnh chụp màn hình sau khi hoàn thiện UI)*
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+---
+
+## 📝 Scripts
+
+```bash
+npm run dev          # Chạy development server
+npm run build        # Build production
+npm run start        # Chạy production server
+npm run db:migrate   # Chạy Prisma migration
+npm run db:seed      # Seed dữ liệu mẫu
+npm run db:studio    # Mở Prisma Studio (GUI database)
+npm run db:push      # Push schema không tạo migration file
+```
+
+---
+
+## 👤 Tác giả
+
+Dự án thực tập — Quản lý chi tiêu cá nhân  
+Xây dựng với ❤️ bằng Next.js + Supabase + Prisma
