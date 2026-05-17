@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useRef } from "react"
-import { X, Camera, Loader2 } from "lucide-react"
+import { X, Camera, Loader2, Receipt } from "lucide-react"
 import { toast } from "sonner"
 import { uploadImage } from "@/lib/supabase"
 import { useSession } from "next-auth/react"
@@ -24,6 +24,8 @@ export default function ExpenseModal({ wallets, onClose, onSuccess }: Props) {
   const [loading, setLoading] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
+  const selectedWallet = wallets.find(w => w.id === walletId)
+
   const handleImage = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
@@ -32,39 +34,26 @@ export default function ExpenseModal({ wallets, onClose, onSuccess }: Props) {
   }
 
   const handleSubmit = async () => {
-    if (!amount || !walletId) {
-      toast.error("Vui lòng nhập đủ thông tin")
-      return
-    }
-    const amt = parseFloat(amount.replace(/\D/g, ""))
-    if (isNaN(amt) || amt <= 0) {
-      toast.error("Số tiền không hợp lệ")
-      return
-    }
-    const wallet = wallets.find((w) => w.id === walletId)
-    if (wallet && Number(wallet.balance) < amt) {
-      toast.error("Số dư không đủ")
-      return
-    }
+    const amt = parseFloat(amount)
+    if (!amount || isNaN(amt) || amt <= 0) { toast.error("Nhập số tiền hợp lệ"); return }
+    if (!walletId) { toast.error("Chọn tài khoản"); return }
+    if (selectedWallet && Number(selectedWallet.balance) < amt) { toast.error("Số dư không đủ"); return }
 
     setLoading(true)
     try {
       let imageUrl: string | undefined
-      if (image && session?.user?.id) {
-        imageUrl = await uploadImage(image, session.user.id)
-      }
+      if (image && session?.user?.id) imageUrl = await uploadImage(image, session.user.id)
 
       const res = await fetch("/api/transactions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ type: "EXPENSE", amount: amt, note, fromWalletId: walletId, imageUrl }),
       })
-
       if (!res.ok) throw new Error()
       toast.success("Đã lưu chi tiêu!")
       onSuccess()
     } catch {
-      toast.error("Có lỗi xảy ra, thử lại nhé")
+      toast.error("Có lỗi xảy ra")
     } finally {
       setLoading(false)
     }
@@ -72,63 +61,99 @@ export default function ExpenseModal({ wallets, onClose, onSuccess }: Props) {
 
   return (
     <>
-      <div className="bottom-sheet-overlay" onClick={onClose} />
-      <div className="bottom-sheet">
-        {/* Handle bar */}
-        <div style={{ display: "flex", justifyContent: "center", paddingTop: 12, paddingBottom: 4 }}>
-          <div style={{ width: 36, height: 4, borderRadius: 2, background: "var(--border)" }} />
+      <div className="sheet-overlay" onClick={onClose} />
+      <div className="sheet">
+
+        {/* Handle */}
+        <div style={{ display: "flex", justifyContent: "center", padding: "14px 0 8px" }}>
+          <div style={{ width: 40, height: 4, borderRadius: 2, background: "var(--border-bright)" }} />
         </div>
 
         {/* Header */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 20px 20px" }}>
-          <h2 style={{ fontSize: 18, fontWeight: 700 }}>Thêm chi tiêu</h2>
-          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", padding: 4 }}>
-            <X size={20} />
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 24px 24px" }}>
+          <div>
+            <h2 style={{
+              fontFamily: "var(--font-display)",
+              fontSize: 20, fontWeight: 700,
+              letterSpacing: "-0.01em",
+            }}>
+              Thêm chi tiêu
+            </h2>
+            {selectedWallet && (
+              <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>
+                Từ: {selectedWallet.name} — còn {Number(selectedWallet.balance).toLocaleString("vi-VN")}đ
+              </p>
+            )}
+          </div>
+          <button
+            onClick={onClose}
+            style={{
+              width: 34, height: 34,
+              borderRadius: 10,
+              border: "1px solid var(--border)",
+              background: "var(--bg-elevated)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              cursor: "pointer", color: "var(--text-secondary)",
+            }}
+          >
+            <X size={16} />
           </button>
         </div>
 
-        <div style={{ padding: "0 20px 24px", display: "flex", flexDirection: "column", gap: 14 }}>
-          {/* Amount */}
+        <div style={{ padding: "0 24px 24px", display: "flex", flexDirection: "column", gap: 20 }}>
+
+          {/* Amount — big input */}
           <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-secondary)", display: "block", marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.4 }}>
-              Số tiền
-            </label>
-            <input
-              className="input-field"
-              type="number"
-              inputMode="numeric"
-              placeholder="0"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              style={{ fontSize: 24, fontWeight: 700, textAlign: "right" }}
-              autoFocus
-            />
+            <label className="label">Số tiền</label>
+            <div style={{ position: "relative" }}>
+              <span style={{
+                position: "absolute", left: 16, top: "50%",
+                transform: "translateY(-50%)",
+                fontSize: 20, fontWeight: 700,
+                color: "var(--text-muted)",
+                fontFamily: "var(--font-display)",
+              }}>₫</span>
+              <input
+                className="input"
+                type="number"
+                inputMode="numeric"
+                placeholder="0"
+                value={amount}
+                onChange={e => setAmount(e.target.value)}
+                autoFocus
+                style={{
+                  paddingLeft: 36,
+                  fontSize: 28,
+                  fontWeight: 700,
+                  fontFamily: "var(--font-display)",
+                  letterSpacing: "-0.02em",
+                  height: 68,
+                }}
+              />
+            </div>
           </div>
 
           {/* Note */}
           <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-secondary)", display: "block", marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.4 }}>
-              Nội dung
-            </label>
+            <label className="label">Nội dung</label>
             <input
-              className="input-field"
+              className="input"
               placeholder="Ăn trưa, xăng xe, mua sắm..."
               value={note}
-              onChange={(e) => setNote(e.target.value)}
+              onChange={e => setNote(e.target.value)}
             />
           </div>
 
-          {/* Wallet */}
+          {/* Wallet select */}
           <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-secondary)", display: "block", marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.4 }}>
-              Tài khoản
-            </label>
+            <label className="label">Tài khoản</label>
             <select
-              className="input-field"
+              className="input"
               value={walletId}
-              onChange={(e) => setWalletId(e.target.value)}
+              onChange={e => setWalletId(e.target.value)}
+              style={{ cursor: "pointer" }}
             >
-              {wallets.map((w) => (
+              {wallets.map(w => (
                 <option key={w.id} value={w.id}>
                   {w.name} — {Number(w.balance).toLocaleString("vi-VN")}đ
                 </option>
@@ -138,37 +163,61 @@ export default function ExpenseModal({ wallets, onClose, onSuccess }: Props) {
 
           {/* Image upload */}
           <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-secondary)", display: "block", marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.4 }}>
-              Ảnh hoá đơn (tuỳ chọn)
-            </label>
+            <label className="label">Ảnh hoá đơn (tuỳ chọn)</label>
             <input ref={fileRef} type="file" accept="image/*" capture="environment" style={{ display: "none" }} onChange={handleImage} />
 
             {preview ? (
-              <div style={{ position: "relative" }}>
-                <Image src={preview} alt="receipt" width={400} height={200} style={{ width: "100%", height: 160, objectFit: "cover", borderRadius: 12 }} />
+              <div style={{ position: "relative", borderRadius: 14, overflow: "hidden" }}>
+                <Image
+                  src={preview} alt="receipt"
+                  width={400} height={200}
+                  style={{ width: "100%", height: 160, objectFit: "cover" }}
+                />
+                <div style={{
+                  position: "absolute", inset: 0,
+                  background: "linear-gradient(to top, rgba(0,0,0,0.5) 0%, transparent 50%)",
+                }} />
                 <button
                   onClick={() => { setImage(null); setPreview(null) }}
                   style={{
-                    position: "absolute", top: 8, right: 8,
-                    background: "rgba(0,0,0,0.6)", border: "none",
-                    borderRadius: "50%", width: 28, height: 28,
+                    position: "absolute", top: 10, right: 10,
+                    background: "rgba(0,0,0,0.7)",
+                    border: "none", borderRadius: "50%",
+                    width: 30, height: 30,
                     display: "flex", alignItems: "center", justifyContent: "center",
                     cursor: "pointer", color: "#fff",
                   }}
                 >
                   <X size={14} />
                 </button>
+                <div style={{ position: "absolute", bottom: 10, left: 14 }}>
+                  <span style={{ fontSize: 12, color: "rgba(255,255,255,0.8)", display: "flex", alignItems: "center", gap: 5 }}>
+                    <Receipt size={12} /> Ảnh hoá đơn
+                  </span>
+                </div>
               </div>
             ) : (
               <button
                 onClick={() => fileRef.current?.click()}
                 style={{
-                  width: "100%", height: 80, borderRadius: 12,
-                  border: "2px dashed var(--border)",
-                  background: "transparent", cursor: "pointer",
+                  width: "100%", height: 88,
+                  borderRadius: 14,
+                  border: "2px dashed var(--border-bright)",
+                  background: "transparent",
+                  cursor: "pointer",
                   display: "flex", flexDirection: "column",
-                  alignItems: "center", justifyContent: "center", gap: 6,
+                  alignItems: "center", justifyContent: "center", gap: 8,
                   color: "var(--text-muted)",
+                  transition: "all 0.15s",
+                  fontFamily: "var(--font-body)",
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.borderColor = "var(--border-accent)"
+                  e.currentTarget.style.color = "var(--accent)"
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.borderColor = "var(--border-bright)"
+                  e.currentTarget.style.color = "var(--text-muted)"
                 }}
               >
                 <Camera size={20} />
@@ -178,10 +227,18 @@ export default function ExpenseModal({ wallets, onClose, onSuccess }: Props) {
           </div>
 
           {/* Actions */}
-          <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
-            <button className="btn-ghost" onClick={onClose}>Huỷ</button>
-            <button className="btn-primary" onClick={handleSubmit} disabled={loading} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
-              {loading ? <><Loader2 size={16} className="animate-spin" />Đang lưu...</> : "Lưu chi tiêu"}
+          <div style={{ display: "flex", gap: 10 }}>
+            <button className="btn-ghost" onClick={onClose} style={{ flex: 1 }}>Huỷ</button>
+            <button
+              className="btn-primary"
+              onClick={handleSubmit}
+              disabled={loading}
+              style={{ flex: 2 }}
+            >
+              {loading
+                ? <><Loader2 size={15} style={{ animation: "spin-slow 0.8s linear infinite" }} />Đang lưu...</>
+                : "Lưu chi tiêu"
+              }
             </button>
           </div>
         </div>
