@@ -1,18 +1,20 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { useSession, signIn } from "next-auth/react"
+import { useSession, signIn, signOut } from "next-auth/react"
 import Image from "next/image"
 import {
   Banknote, Wallet, Smartphone, MoreHorizontal,
   Plus, ArrowLeftRight, TrendingDown, Eye, EyeOff,
-  Sparkles, ChevronRight,
+  Sparkles, ChevronRight, LogOut,
 } from "lucide-react"
 import { formatCurrency } from "@/lib/utils"
 import BottomNav from "@/components/layout/BottomNav"
 import ThemeToggle from "@/components/layout/ThemeToggle"
 import ExpenseModal from "@/components/transactions/ExpenseModal"
 import TransferModal from "@/components/transactions/TransferModal"
+import WalletCreateModal from "@/components/wallets/WalletCreateModal"
+import WalletEditModal from "@/components/wallets/WalletEditModal"
 import type { Wallet as WalletType } from "@prisma/client"
 
 /* ── Wallet meta ─────────────────────────────────────────────────── */
@@ -208,7 +210,7 @@ function HeroCard({ total, count, loading }: { total: number; count: number; loa
 }
 
 /* ── Wallet Card ─────────────────────────────────────────────────── */
-function WalletCard({ wallet }: { wallet: WalletType }) {
+function WalletCard({ wallet, onEdit }: { wallet: WalletType; onEdit: () => void }) {
   const meta = walletMeta[wallet.icon] || walletMeta.other
   const Icon = meta.icon
   const balance = Number(wallet.balance)
@@ -216,7 +218,8 @@ function WalletCard({ wallet }: { wallet: WalletType }) {
   return (
     <div className="wallet-card" style={{
       backgroundImage: `radial-gradient(ellipse at top right, ${meta.glow}08 0%, transparent 60%)`,
-    }}>
+      cursor: "pointer",
+    }} onClick={onEdit}>
       <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
         {/* Icon */}
         <div style={{
@@ -282,7 +285,7 @@ function WalletSkeleton() {
 }
 
 /* ── Empty State ─────────────────────────────────────────────────── */
-function EmptyWallets() {
+function EmptyWallets({ onCreateWallet }: { onCreateWallet: () => void }) {
   return (
     <div style={{
       textAlign: "center",
@@ -302,9 +305,16 @@ function EmptyWallets() {
         <Wallet size={28} color="var(--accent)" />
       </div>
       <p style={{ fontWeight: 600, fontSize: 15, marginBottom: 6 }}>Chưa có tài khoản nào</p>
-      <p style={{ fontSize: 13, color: "var(--text-muted)", lineHeight: 1.6 }}>
-        Chạy lệnh seed để tạo<br />dữ liệu mẫu và bắt đầu
+      <p style={{ fontSize: 13, color: "var(--text-muted)", lineHeight: 1.6, marginBottom: 20 }}>
+        Tạo tài khoản mới để bắt đầu<br />quản lý chi tiêu
       </p>
+      <button
+        onClick={onCreateWallet}
+        className="btn-primary"
+        style={{ width: "100%", justifyContent: "center" }}
+      >
+        <Plus size={16} /> Tạo tài khoản
+      </button>
     </div>
   )
 }
@@ -316,6 +326,8 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const [showExpense, setShowExpense] = useState(false)
   const [showTransfer, setShowTransfer] = useState(false)
+  const [showCreateWallet, setShowCreateWallet] = useState(false)
+  const [editingWallet, setEditingWallet] = useState<WalletType | null>(null)
 
   const fetchWallets = async () => {
     try {
@@ -388,7 +400,24 @@ export default function DashboardPage() {
               </p>
             </div>
           </div>
-          <ThemeToggle />
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <ThemeToggle />
+            <button
+              onClick={() => signOut()}
+              style={{
+                width: 36, height: 36,
+                borderRadius: 10,
+                border: "1px solid var(--border)",
+                background: "var(--bg-elevated)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                cursor: "pointer", color: "var(--text-secondary)",
+                transition: "all 0.15s",
+              }}
+              title="Đăng xuất"
+            >
+              <LogOut size={16} />
+            </button>
+          </div>
         </header>
 
         <div style={{ padding: "0 20px" }}>
@@ -420,18 +449,31 @@ export default function DashboardPage() {
           <div>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
               <span className="label" style={{ margin: 0 }}>Tài khoản</span>
-              <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
-                {wallets.length} ví
-              </span>
+              <button
+                onClick={() => setShowCreateWallet(true)}
+                style={{
+                  fontSize: 12, color: "var(--accent)", cursor: "pointer",
+                  background: "none", border: "none", fontWeight: 600,
+                  padding: 0, textDecoration: "underline",
+                }}
+              >
+                + Tạo mới
+              </button>
             </div>
 
             {loading ? (
               <WalletSkeleton />
             ) : wallets.length === 0 ? (
-              <EmptyWallets />
+              <EmptyWallets onCreateWallet={() => setShowCreateWallet(true)} />
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                {wallets.map(w => <WalletCard key={w.id} wallet={w} />)}
+                {wallets.map(w => (
+                  <WalletCard
+                    key={w.id}
+                    wallet={w}
+                    onEdit={() => setEditingWallet(w)}
+                  />
+                ))}
               </div>
             )}
           </div>
@@ -452,6 +494,19 @@ export default function DashboardPage() {
           wallets={wallets}
           onClose={() => setShowTransfer(false)}
           onSuccess={() => { setShowTransfer(false); fetchWallets() }}
+        />
+      )}
+      {showCreateWallet && (
+        <WalletCreateModal
+          onClose={() => setShowCreateWallet(false)}
+          onSuccess={() => { setShowCreateWallet(false); fetchWallets() }}
+        />
+      )}
+      {editingWallet && (
+        <WalletEditModal
+          wallet={editingWallet}
+          onClose={() => setEditingWallet(null)}
+          onSuccess={() => { setEditingWallet(null); fetchWallets() }}
         />
       )}
     </>
