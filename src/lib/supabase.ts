@@ -5,20 +5,21 @@ export const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 )
 
-// Upload ảnh lên Supabase Storage
-export async function uploadImage(file: File, userId: string): Promise<string> {
-  const ext = file.name.split(".").pop()
-  const fileName = `${userId}/${Date.now()}.${ext}`
+// Upload qua API server — tránh lỗi auth từ client
+export async function uploadImage(file: File): Promise<string> {
+  const formData = new FormData()
+  formData.append("file", file)
 
-  const { data, error } = await supabase.storage
-    .from("receipts")
-    .upload(fileName, file, { upsert: false })
+  const res = await fetch("/api/upload", {
+    method: "POST",
+    body: formData,
+  })
 
-  if (error) throw error
+  if (!res.ok) {
+    const data = await res.json()
+    throw new Error(data.error || "Upload thất bại")
+  }
 
-  const { data: urlData } = supabase.storage
-    .from("receipts")
-    .getPublicUrl(data.path)
-
-  return urlData.publicUrl
+  const data = await res.json()
+  return data.url
 }

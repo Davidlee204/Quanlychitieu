@@ -4,7 +4,6 @@ import { useState, useRef } from "react"
 import { X, Camera, Loader2, Receipt } from "lucide-react"
 import { toast } from "sonner"
 import { uploadImage } from "@/lib/supabase"
-import { useSession } from "next-auth/react"
 import type { Wallet } from "@prisma/client"
 import Image from "next/image"
 
@@ -15,7 +14,7 @@ interface Props {
 }
 
 export default function ExpenseModal({ wallets, onClose, onSuccess }: Props) {
-  const { data: session } = useSession()
+  
   const [note, setNote] = useState("")
   const [amount, setAmount] = useState("")
   const [walletId, setWalletId] = useState(wallets[0]?.id || "")
@@ -42,7 +41,7 @@ export default function ExpenseModal({ wallets, onClose, onSuccess }: Props) {
     setLoading(true)
     try {
       let imageUrl: string | undefined
-      if (image && session?.user?.id) imageUrl = await uploadImage(image, session.user.id)
+      if (image) imageUrl = await uploadImage(image)
 
       const res = await fetch("/api/transactions", {
         method: "POST",
